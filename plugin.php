@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Allow Dash and Underscore in Custom Short URLs
-Plugin URI: https://yourls.org/
+Plugin URI: https://github.com/harindujayakody/allow-dash-and-underscore-in-custom-short-urls-yourls
 Description: A plugin to allow dash and underscore in custom short URLs
 Version: 1.1
 Author: Harindu Jayakody
@@ -12,25 +12,29 @@ Author URI: https://ekathuwa.org
 if( !defined( 'YOURLS_ABSPATH' ) ) die();
 
 // Allow dash and underscore in custom short URLs
-if( function_exists( 'yourls_add_filter' ) ) {
-    yourls_add_filter( 'get_shorturl_charset', 'custom_shorturl_charset' );
-    yourls_add_filter( 'get_shorturl_charset_regex', 'custom_shorturl_charset_regex' );
-}
-
+yourls_add_filter( 'get_shorturl_charset', 'custom_shorturl_charset' );
 function custom_shorturl_charset( $charset ) {
     return $charset . '-_';
 }
 
-// Validate custom short URLs to include dash and underscore inside character class
+// Validate custom short URLs to include dash and underscore
+yourls_add_filter( 'get_shorturl_charset_regex', 'custom_shorturl_charset_regex' );
 function custom_shorturl_charset_regex( $pattern ) {
-    // If enclosed in square brackets e.g. [a-zA-Z0-9], insert inside character class
-    if ( preg_match( '/^\[(.*)\]$/', $pattern, $matches ) ) {
-        return '[' . $matches[1] . '\-_]';
+    // The core pattern is anchored, e.g. /^[0-9a-z]+$/ (built from the
+    // charset above, which already includes '-_'). Appending '|[-_]' would
+    // add an UNANCHORED alternative, so any string containing a dash or an
+    // underscore anywhere (e.g. 'foo!bar-') would wrongly validate.
+    // Instead, insert '-_' inside the existing [...] character class. A '-'
+    // at the end of a class and '_' are both literal, so no escaping needed.
+    // If the class already contains '-_', or there is no class to extend,
+    // return the pattern unchanged.
+    if ( strpos( $pattern, '-_' ) !== false ) {
+        return $pattern;
     }
-    // If ending with a closing bracket
-    if ( substr( $pattern, -1 ) === ']' ) {
-        return substr( $pattern, 0, -1 ) . '\-_]';
+    $close = strpos( $pattern, ']' );
+    if ( $close === false ) {
+        return $pattern;
     }
-    // Otherwise append to character class pattern
-    return $pattern . '\-_';
+    return substr_replace( $pattern, '-_', $close, 0 );
 }
+?>
